@@ -3,6 +3,18 @@
 	"version": "0.1.0",
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/es/index.js",
+	"exports": {
+		".": {
+			"module": "./dist/es/index.js",
+			"import": "./dist/es/index.js",
+			"default": "./dist/cjs/index.js"
+		},
+		"./runtime": {
+			"module": "./dist/es/runtime/index.js",
+			"import": "./dist/es/runtime/index.js",
+			"default": "./dist/cjs/runtime/index.js"
+		}
+	},
 	"scripts": {
 		"clean": "rimraf ./dist/**/*",
 		"build": "npm run clean && concurrently npm:build:*",
