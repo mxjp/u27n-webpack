@@ -2,7 +2,7 @@
 This is a webpack plugin that can be used instead of the U27N command line interface that supports
 locale data chunk splitting, tree shaking and automatic detection of locale data for external npm packages.
 
-**Note**, that external locale data detection is not yet implemented.
+**Note**, that work is in progress and things might not work as expected for all "0.x" versions.
 
 ## Setup
 ```bash
