@@ -21,7 +21,7 @@
 		"build:es": "tsc -p tsconfig-es.json",
 		"build:cjs": "tsc -p tsconfig-cjs.json",
 		"start": "tsc -p tsconfig-cjs.json -w",
-		"lint": "eslint --no-error-on-unmatched-pattern --config .eslint.json ./src/**/*",
+		"lint": "eslint --no-error-on-unmatched-pattern --config .eslintrc.json ./src/**/*",
 		"prepack": "npm run build && npm run lint"
 	},
 	"devDependencies": {
