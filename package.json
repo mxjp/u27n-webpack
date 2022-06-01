@@ -8,14 +8,17 @@
 		"build": "npm run clean && concurrently npm:build:*",
 		"build:es": "tsc -p tsconfig-es.json",
 		"build:cjs": "tsc -p tsconfig-cjs.json",
+		"start": "tsc -p tsconfig-cjs.json -w",
 		"lint": "eslint --no-error-on-unmatched-pattern --config .eslint.json ./src/**/*",
 		"prepack": "npm run build && npm run lint"
 	},
 	"devDependencies": {
 		"@mpt/eslint-rules": "^2.0.1",
-		"@u27n/core": "^1.10.2",
-		"@u27n/typescript": "^1.0.0",
+		"@u27n/core": "^1.13.0",
+		"@u27n/typescript": "^1.1.0",
 		"concurrently": "^7.1.0",
+		"html-webpack-plugin": "^5.5.0",
+		"preact": "^10.7.1",
 		"rimraf": "^3.0.2",
 		"ts-loader": "^9.2.9",
 		"typescript": "^4.6.3",
@@ -25,5 +28,8 @@
 	},
 	"peerDependencies": {
 		"webpack": "^5.72.0"
+	},
+	"dependencies": {
+		"estree-walker": "^2.0.2"
 	}
 }
