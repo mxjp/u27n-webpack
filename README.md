@@ -35,7 +35,7 @@ const { U27nPlugin } = require("@u27n/webpack");
       // The filename to output bundled locale data.
       // The following placeholders are supported:
       //   [hash]     Content hash
-      //   [chunk]    U27N internal chunk id
+      //   [chunk]    Webpack chunk id
       //   [locale]   Locale code
       //
       // Default is "locale/[hash].json" in production, otherwise "locale/[locale]-[chunk].json".
