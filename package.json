@@ -26,7 +26,7 @@
 	},
 	"devDependencies": {
 		"@mpt/eslint-rules": "^2.0.1",
-		"@u27n/core": "^1.13.0",
+		"@u27n/core": "^1.14.0",
 		"@u27n/typescript": "^1.1.0",
 		"concurrently": "^7.1.0",
 		"html-webpack-plugin": "^5.5.0",
