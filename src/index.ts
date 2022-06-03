@@ -1,17 +1,15 @@
-import { Config, NodeFileSystem, Project, Source } from "@u27n/core";
+import { Config, Diagnostic, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, NodeFileSystem, Project, Source } from "@u27n/core";
 import { LocaleData } from "@u27n/core/runtime";
 import { createHash } from "crypto";
 import { ImportExpression } from "estree";
 import { walk } from "estree-walker";
-import { join } from "path";
+import { join, relative } from "path";
 import { minify } from "terser";
-import { Chunk, Compilation, Compiler, dependencies, javascript, NormalModule, sources } from "webpack";
-
-import { WeakIdAllocator } from "./weak-id-allocator.js";
+import type { Chunk, Compilation, Compiler, javascript, NormalModule } from "webpack";
 
 type ChunkGroup = Compilation["chunkGroups"] extends (infer G)[] ? G : never;
 
-const NAME = "U27N";
+const NAME = "u27n";
 
 export class U27nPlugin {
 	readonly #configPath: string;
@@ -28,9 +26,17 @@ export class U27nPlugin {
 	}
 
 	public apply(compiler: Compiler): void {
+		const { webpack } = compiler;
+
+		let didProcessAssets = false;
+
 		let project: Project;
 		let projectPromise: Promise<void> | null = null;
 		let projectWatcher: (() => Promise<void>) | null = null;
+
+		const logger = compiler.getInfrastructureLogger(NAME);
+
+		compiler.getInfrastructureLogger(NAME);
 
 		const output = this.#output ?? (compiler.options.mode === "production" ? "locale/[hash].json" : "locale/[locale]-[chunk].json");
 		if (output === null || !(output.includes("[hash]") || (output.includes("[chunk]") && output.includes("[locale]")))) {
@@ -41,8 +47,9 @@ export class U27nPlugin {
 			if (projectPromise === null) {
 				projectPromise = (async () => {
 					const configFilename = join(compiler.context, this.#configPath);
-					const config = await Config.read(configFilename);
+					logger.info("Loading project:", relative(process.cwd(), configFilename));
 
+					const config = await Config.read(configFilename);
 					project = await Project.create({
 						config,
 						fileSystem: new NodeFileSystem(),
@@ -52,6 +59,49 @@ export class U27nPlugin {
 			return projectPromise;
 		};
 
+		const emitDiagnostics = (diagnostics: Diagnostic[]) => {
+			for (const diagnostic of diagnostics) {
+				const severity = getDiagnosticSeverity(project.config.diagnostics, diagnostic.type);
+				if (severity !== "ignore") {
+					const locations = getDiagnosticLocations(project.config.context, project.dataProcessor, diagnostic);
+					const message = getDiagnosticMessage(diagnostic);
+
+					let text = `[${severity}]: ${message}`;
+					for (const location of locations) {
+						switch (location.type) {
+							case "file":
+								text += `\n  in ${relative(process.cwd(), location.filename)}`;
+								break;
+
+							case "fragment":
+								text += `\n  in ${relative(process.cwd(), location.filename)}`;
+								if (location.source) {
+									const position = location.source.lineMap.getPosition(location.start);
+									if (position !== null) {
+										text += `:${position.line + 1}:${position.character + 1}`;
+									}
+								}
+								break;
+						}
+					}
+
+					switch (severity) {
+						case "error":
+							logger.error(text);
+							break;
+
+						case "warning":
+							logger.warn(text);
+							break;
+
+						default:
+							logger.info(text);
+							break;
+					}
+				}
+			}
+		};
+
 		compiler.hooks.run.tapPromise(NAME, async () => {
 			await ensureProject();
 			const result = await project.run({
@@ -59,8 +109,7 @@ export class U27nPlugin {
 				modify: this.#modify ?? false,
 				output: false,
 			});
-			// TODO: Log in a webpack agnostic way:
-			console.log("Run result:", result);
+			emitDiagnostics(result.diagnostics);
 		});
 
 		compiler.hooks.watchRun.tapPromise(NAME, async () => {
@@ -71,19 +120,20 @@ export class U27nPlugin {
 					modify: this.#modify ?? true,
 					output: false,
 					delay: this.#delay,
-					onDiagnostics: async diagnostics => {
-						// TODO: Log in a webpack agnostic way:
-						console.log("Diagnostics:", diagnostics);
+					onFinish: async ({ diagnostics, translationDataChanged }) => {
+						emitDiagnostics(diagnostics);
+						if (translationDataChanged && didProcessAssets) {
+							compiler.watching?.invalidate();
+						}
 					},
 					onError: error => {
-						// TODO: Log in a webpack agnostic way:
-						console.error("Error:", error);
+						logger.error(error);
 					},
 				});
 			}
 		});
 
-		const globalChunkIds = new WeakIdAllocator<Chunk>();
+		// const globalChunkIds = new WeakIdAllocator<Chunk>();
 
 		const chunkGroups = new Set<ChunkGroup>();
 		const moduleChunks = new Map<NormalModule, Chunk[]>();
@@ -104,7 +154,7 @@ export class U27nPlugin {
 				normalModuleFactory.hooks.parser.for(type).tap(NAME, (parser: javascript.JavascriptParser) => {
 					parser.hooks.program.tap(NAME, ast => {
 						const { module } = parser.state;
-						if (module instanceof NormalModule) {
+						if (module instanceof webpack.NormalModule) {
 							walk(ast, {
 								enter: node => {
 									if (node.type === "ImportExpression") {
@@ -112,8 +162,8 @@ export class U27nPlugin {
 										if (expr.source.type === "Literal" && typeof expr.source.value === "string") {
 											const index = requests.length;
 											requests.push([module, expr.source.value]);
-											module.addDependency(new dependencies.ConstDependency(`__u27n_i__(${index},`, expr.range![0]));
-											module.addDependency(new dependencies.ConstDependency(")", expr.range![1]));
+											module.addDependency(new webpack.dependencies.ConstDependency(`__u27n_i__(${index},`, expr.range![0]));
+											module.addDependency(new webpack.dependencies.ConstDependency(")", expr.range![1]));
 										}
 									}
 								},
@@ -125,7 +175,7 @@ export class U27nPlugin {
 
 			compilation.hooks.afterOptimizeTree.tap(NAME, (_chunks, modules) => {
 				for (const module of modules) {
-					if (module instanceof NormalModule) {
+					if (module instanceof webpack.NormalModule) {
 						moduleChunks.set(module, compilation.chunkGraph.getModuleChunks(module));
 					}
 				}
@@ -136,9 +186,11 @@ export class U27nPlugin {
 		});
 
 		compiler.hooks.thisCompilation.tap(NAME, compilation => {
-			compilation.hooks.processAssets.tapPromise({ name: NAME, stage: Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE }, async () => {
+			compilation.hooks.processAssets.tapPromise({ name: NAME, stage: webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE }, async () => {
 				/** Map of chunk id => locale code => locale data */
-				const data = new Map<number, Map<string, LocaleData>>();
+				const data = new Map<string | number, Map<string, LocaleData>>();
+
+				didProcessAssets = true;
 
 				const { config } = project;
 				const projectData = project.dataProcessor.generateLocaleData({
@@ -169,12 +221,10 @@ export class U27nPlugin {
 											targetNamespaces = [];
 
 											chunks.forEach(chunk => {
-												const chunkId = globalChunkIds.alloc(chunk);
-
-												const chunkData = data.get(chunkId);
+												const chunkData = data.get(chunk.id!);
 												if (chunkData === undefined) {
 													const targetNamespace: LocaleData.Namespace = {};
-													data.set(chunkId, new Map([[locale, { [config.namespace]: targetNamespace }]]));
+													data.set(chunk.id!, new Map([[locale, { [config.namespace]: targetNamespace }]]));
 													targetNamespaces!.push(targetNamespace);
 												} else {
 													const localeData = chunkData.get(locale);
@@ -198,8 +248,8 @@ export class U27nPlugin {
 					}
 				});
 
-				const localeChunks: Record<number, Record<string, string>> = {};
-				const localeChunkIds = new Set<number>();
+				const localeChunks: Record<string | number, Record<string, string>> = {};
+				const localeChunkIds = new Set<string | number>();
 
 				data.forEach((chunkData, chunkId) => {
 					chunkData.forEach((localeData, locale) => {
@@ -210,7 +260,7 @@ export class U27nPlugin {
 							.replace(/\[locale\]/g, locale)
 							.replace(/\[hash\]/g, createHash("sha256").update(content).digest().slice(0, 16).toString("base64url"));
 
-						compilation.emitAsset(name, new sources.OriginalSource(content, name));
+						compilation.emitAsset(name, new webpack.sources.OriginalSource(content, name));
 
 						const localeChunk = localeChunks[chunkId];
 						if (localeChunk === undefined) {
@@ -227,15 +277,15 @@ export class U27nPlugin {
 
 				const entryChunkGroups = new Set<ChunkGroup>(chunkGroups);
 
-				const requestChunkIds: number[][] = requests.map(([module, request]) => {
-					const chunkIds = new Set<number>();
+				const requestChunkIds: (string | number)[][] = requests.map(([module, request]) => {
+					const chunkIds = new Set<string | number>();
 					for (const chunkGroup of chunkGroups) {
 						if (chunkGroup.origins.some(o => o.module === module && o.request === request)) {
 							entryChunkGroups.delete(chunkGroup);
 							for (const chunk of chunkGroup.chunks) {
-								const chunkId = globalChunkIds.alloc(chunk);
-								if (localeChunkIds.has(chunkId)) {
-									chunkIds.add(chunkId);
+								// const chunkId = globalChunkIds.alloc(chunk);
+								if (localeChunkIds.has(chunk.id!)) {
+									chunkIds.add(chunk.id!);
 								}
 							}
 						}
@@ -243,12 +293,12 @@ export class U27nPlugin {
 					return Array.from(chunkIds);
 				});
 
-				const entryChunkIds = new Set<number>();
+				const entryChunkIds = new Set<string | number>();
 				for (const chunkGroup of entryChunkGroups) {
 					for (const chunk of chunkGroup.chunks) {
-						const chunkId = globalChunkIds.alloc(chunk);
-						if (localeChunkIds.has(chunkId)) {
-							entryChunkIds.add(chunkId);
+						// const chunkId = globalChunkIds.alloc(chunk);
+						if (localeChunkIds.has(chunk.id!)) {
+							entryChunkIds.add(chunk.id!);
 						}
 					}
 				}
@@ -266,12 +316,15 @@ export class U27nPlugin {
 				for (const chunk of compilation.chunks) {
 					if (chunk.canBeInitial()) {
 						for (const file of chunk.files) {
-							compilation.updateAsset(file, source => {
-								return new sources.ConcatSource(
-									new sources.OriginalSource(manifestJs, file),
-									source,
-								);
-							});
+							if (/\.js$/.test(file)) {
+								compilation.updateAsset(file, source => {
+									return new webpack.sources.ConcatSource(
+										new webpack.sources.OriginalSource(manifestJs, file),
+										source,
+									);
+								});
+								break;
+							}
 						}
 					}
 				}

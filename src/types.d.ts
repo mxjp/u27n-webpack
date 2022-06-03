@@ -3,11 +3,11 @@
 
 declare type U27nRuntimeManifest = [
 	/** Array of chunk ids that are never requested. */
-	entryChunkIds: number[],
+	entryChunkIds: (string | number)[],
 	/** Array of chunk ids by request index. */
-	requests: number[][],
+	requests: (string | number)[][],
 	/** Map chunk ids to locales to locale data resources. */
-	localeChunks: Record<number, Record<string, string>>,
+	localeChunks: Record<string | number, Record<string, string>>,
 ];
 
 declare var __u27n_i__: <T extends object>(requestIndex: number, importPromise: Promise<T>) => Promise<T>;

@@ -10,7 +10,7 @@ const pending = new Map<string, Promise<void>>();
 const requested = new Set<number>();
 const moduleRequestMap = new WeakMap<object, Set<number>>();
 
-function fetchChunk(tasks: Promise<unknown>[], chunkId: number, locale: Locale): void {
+function fetchChunk(tasks: Promise<unknown>[], chunkId: string | number, locale: Locale): void {
 	const key = JSON.stringify([chunkId, locale.code]);
 	if (cache.has(key)) {
 		return;
