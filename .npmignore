@@ -1,6 +1,7 @@
 /.github
 /node_modules
 /test
+/test_data
 /test_out
 /.editorconfig
 /.eslint*
