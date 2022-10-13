@@ -1,6 +1,7 @@
 /node_modules
 /dist
 /test_out
+/test_data
 /runtime.d.ts
 *.cjs
 *.mjs

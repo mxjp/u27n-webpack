@@ -20,14 +20,18 @@
 		"build": "npm run clean && concurrently npm:build:*",
 		"build:es": "tsc -p tsconfig-es.json",
 		"build:cjs": "tsc -p tsconfig-cjs.json",
-		"start": "tsc -p tsconfig-cjs.json -w",
+		"test:dev": "npm run clean && concurrently \"tsc -p tsconfig-test.json -w\" \"ava -v -w\"",
+		"test": "npm run clean && tsc -p tsconfig-test.json && ava -v",
 		"lint": "eslint --no-error-on-unmatched-pattern --config .eslintrc.json ./src/**/*",
 		"prepack": "npm run build && npm run lint"
 	},
 	"devDependencies": {
 		"@mpt/eslint-rules": "^3.0.0",
-		"@u27n/core": "^1.14.1",
+		"@types/js-string-escape": "^1.0.1",
+		"@types/node": "^18.8.1",
+		"@u27n/core": "^1.17.0",
 		"@u27n/typescript": "^1.1.1",
+		"ava": "^4.3.3",
 		"concurrently": "^7.4.0",
 		"html-webpack-plugin": "^5.5.0",
 		"preact": "^10.11.0",
@@ -42,6 +46,7 @@
 		"webpack": "^5.74.0"
 	},
 	"dependencies": {
-		"estree-walker": "^2.0.2"
+		"estree-walker": "^2.0.2",
+		"js-string-escape": "^1.0.1"
 	}
 }

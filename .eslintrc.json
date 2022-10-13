@@ -6,6 +6,17 @@
 		"project": "./tsconfig.json"
 	},
 	"rules": {
-		"@typescript-eslint/explicit-member-accessibility": "off"
+		"@typescript-eslint/explicit-member-accessibility": "off",
+		"camelcase": [
+			"error",
+			{
+				"properties": "always",
+				"ignoreImports": true,
+				"ignoreGlobals": true,
+				"allow": [
+					"^_u27nw_"
+				]
+			}
+		]
 	}
 }
