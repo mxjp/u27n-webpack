@@ -23,7 +23,7 @@
 		"test:dev": "npm run clean && concurrently \"tsc -p tsconfig-test.json -w\" \"ava -v -w\"",
 		"test": "npm run clean && tsc -p tsconfig-test.json && ava -v",
 		"lint": "eslint --no-error-on-unmatched-pattern --config .eslintrc.json ./src/**/*",
-		"prepack": "npm run build && npm run lint"
+		"prepack": "npm test && npm run build && npm run lint"
 	},
 	"devDependencies": {
 		"@mpt/eslint-rules": "^3.0.0",
