@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { Config, Diagnostic, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, NodeFileSystem, Project, Source, TranslationData, TranslationDataView } from "@u27n/core";
 import { LocaleData } from "@u27n/core/runtime";
@@ -11,10 +11,21 @@ import { ModuleRequestMap } from "./module-request-map.js";
 import { RuntimeManifestCompiler } from "./runtime-manifest-compiler.js";
 import type { ChunkGroup, ChunkId } from "./types/webpack.js";
 
-const targetsRoot = join(__dirname, "runtime/targets");
-const targets = new Set(["web", "node"]);
+const envRoot = join(__dirname, "runtime/env");
 
 export class U27nPlugin {
+	/**
+	 * Uses `fetch` to request locale chunks relative to webpack's public path.
+	 */
+	static ENV_FETCH = join(envRoot, "fetch.js");
+
+	/**
+	 * Uses `node:fs/promises` to read locale chunks from the file system.
+	 *
+	 * Locale chunk names are resolved relative to the dirname of the bundle.
+	 */
+	static ENV_NODE = join(envRoot, "node.js");
+
 	#options: U27nPlugin.Options;
 
 	constructor(options: U27nPlugin.Options) {
@@ -25,15 +36,12 @@ export class U27nPlugin {
 		const options = this.#options;
 		const { webpack } = compiler;
 
-		let target: U27nPlugin.Target | undefined = this.#options.target;
-		if (target === undefined && targets.has(compiler.options.target as U27nPlugin.Target)) {
-			target = compiler.options.target as U27nPlugin.Target;
-		}
-		if (target === undefined) {
-			target = "web";
+		const env = options.env ?? U27nPlugin.ENV_FETCH;
+		if (typeof env !== "string" || !isAbsolute(env)) {
+			throw new Error(`options.env must be an absolute path.`);
 		}
 
-		new webpack.NormalModuleReplacementPlugin(/^@u27n\/webpack\/runtime\/target$/, join(targetsRoot, target)).apply(compiler);
+		new webpack.NormalModuleReplacementPlugin(/^@u27n\/webpack\/runtime\/env$/, env).apply(compiler);
 
 		const logger = compiler.getInfrastructureLogger(U27nPlugin.name);
 		const logFile = (filename: string) => relative(process.cwd(), filename);
@@ -341,15 +349,11 @@ export declare namespace U27nPlugin {
 		config?: string | string[];
 
 		/**
-		 * The compilation target.
+		 * Absolute path to the environment implementation module.
 		 *
-		 * This is used to determine how locale chunks are loaded. Default is the webpack target if supported.
-		 *
-		 * Supported targets are:
-		 * + `"web"` - Uses `fetch` to load locale chunks from the public path.
-		 * + `"node"` - Reads and parses locale chunks from the file system.
+		 * @default {@link U27nPlugin.ENV_FETCH}
 		 */
-		target?: Target;
+		env?: string;
 
 		/**
 		 * Enable or disable updating source files.

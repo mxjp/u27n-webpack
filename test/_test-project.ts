@@ -33,6 +33,7 @@ export function createTestProject(options: {
 						}),
 						new U27nPlugin({
 							config: ${str(join(rootToCwd, "u27n.json"))},
+							env: U27nPlugin.ENV_NODE,
 						}),
 					],
 					resolve: {

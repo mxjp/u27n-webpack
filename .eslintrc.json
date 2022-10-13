@@ -14,7 +14,8 @@
 				"ignoreImports": true,
 				"ignoreGlobals": true,
 				"allow": [
-					"^_u27nw_"
+					"^_u27nw_",
+					"^__webpack_"
 				]
 			}
 		]

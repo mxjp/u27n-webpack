@@ -1,5 +1,5 @@
 import { Locale, LocaleData, U27N } from "@u27n/core/runtime";
-import { fetchLocaleChunk } from "@u27n/webpack/runtime/target";
+import { env } from "@u27n/webpack/runtime/env";
 
 import type { ChunkId } from "../types/webpack";
 
@@ -19,10 +19,10 @@ const addedLocaleChunkCache = new WeakMap<Locale, Set<string>>();
  *
  * Failed requests are automatically removed from the cache.
  */
-function fetchLocaleChunkCached(name: string): Promise<LocaleData> {
+function fetchLocaleChunk(name: string): Promise<LocaleData> {
 	let promise = localeChunkCache.get(name);
 	if (promise === undefined) {
-		promise = fetchLocaleChunk(name).catch(error => {
+		promise = env.fetchLocaleChunk(name).catch(error => {
 			localeChunkCache.delete(name);
 			throw error;
 		});
@@ -46,7 +46,7 @@ function addLocaleChunks(locale: Locale, chunkIds: Iterable<ChunkId>): Promise<u
 			} else {
 				addedChunkNames.add(name);
 			}
-			tasks.push(fetchLocaleChunkCached(name).then(localeData => locale.addData(localeData)));
+			tasks.push(fetchLocaleChunk(name).then(localeData => locale.addData(localeData)));
 		}
 	}
 	return tasks.length === 1
