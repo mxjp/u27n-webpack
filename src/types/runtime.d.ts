@@ -16,9 +16,6 @@ declare type U27nImportHookCallback<T extends object = object> = (requestId: num
  *
  * This is initialized when the u27n runtime library is loaded and is required
  * before any dynamic imports are invoked.
- *
- * If the runtime library can not be included in the main chunk, dynamic import
- * hooks must be disabled.
  */
 // eslint-disable-next-line no-var
 declare var _u27nw_i: U27nImportHookCallback;

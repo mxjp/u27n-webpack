@@ -18,11 +18,12 @@ function translation(value: TranslationData.Value): TranslationData.Translation 
 	};
 }
 
-test("foo", async t => {
+test("watch mode", async t => {
 	const cwd = await createTempDir(__filename, t);
 
-	await createTestProject({
+	const testProject = await createTestProject({
 		cwd,
+		banner: true,
 	});
 
 	await exec({
@@ -34,13 +35,11 @@ test("foo", async t => {
 	});
 
 	const dataFilename = join(cwd, "u27n-data.json");
-
 	const data = TranslationData.parseJson(await readFile(dataFilename, "utf-8"));
 	data.fragments["0"].translations["de"] = translation("Hallo Welt!");
 	data.fragments["a"].translations["de"] = translation("X");
 	data.fragments["b"].translations["de"] = translation("Y");
 	data.fragments["c"].translations["de"] = translation("Z");
-
 	await writeFile(dataFilename, TranslationData.formatJson(data, true));
 
 	await execPipeline({
@@ -49,18 +48,34 @@ test("foo", async t => {
 		command: [nodeBin, webpackCli, "--watch"],
 		ignoreStatus: true,
 	}, async events => {
+		async function checkBanner() {
+			const mainChunk = await readFile(join(cwd, "dist/index.js"), "utf-8");
+			const testBannerIndex = mainChunk.indexOf(`/* u27n-test-banner */`);
+			t.true(testBannerIndex >= 0, "test banner is not present in main chunk");
+			const manifestIndex = mainChunk.indexOf(`_u27nw_m=`);
+			t.true(manifestIndex >= 0, "mainfest is not present in main chunk");
+			t.true(manifestIndex > testBannerIndex, "manifest was injected before banner plugin");
+		}
+
 		await on(events, "done").next();
+		await checkBanner();
+
 		await touchSource(join(cwd, "src/module-c.ts"));
 		await on(events, "done").next();
+		await checkBanner();
+
 		await touchSource(join(cwd, "src/index.ts"));
 		await on(events, "done").next();
+		await checkBanner();
 	});
 
-	await exec({
+	const { stdout, stderr } = await exec({
 		t,
 		cwd,
+		silent: true,
 		command: [nodeBin, "dist"],
 	});
 
-	t.pass();
+	t.is(stdout, testProject.expectedStdout);
+	t.is(stderr, "");
 });

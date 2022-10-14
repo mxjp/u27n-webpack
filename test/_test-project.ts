@@ -7,15 +7,17 @@ function unixPath(value: string) {
 	return value.replace(/\\/g, "/");
 }
 
-export function createTestProject(options: {
+export async function createTestProject(options: {
 	cwd: string;
-}): Promise<void> {
+	banner?: boolean;
+}): Promise<{ expectedStdout: string }> {
 	const str = (value: string) => JSON.stringify(value);
 	const rootToCwd = relative(packageRoot, options.cwd);
 	const cwdToSrc = relative(options.cwd, testSrcRoot);
 
-	return createFsLayout(options.cwd, {
+	await createFsLayout(options.cwd, {
 		"webpack.config.js": `
+			const webpack = require("webpack");
 			const { join } = require("path");
 			const { U27nPlugin } = require(${str(cwdToSrc)});
 
@@ -35,6 +37,10 @@ export function createTestProject(options: {
 							config: ${str(join(rootToCwd, "u27n.json"))},
 							env: U27nPlugin.ENV_NODE,
 						}),
+						${options.banner ? `new webpack.BannerPlugin({
+							banner: "/* u27n-test-banner */",
+							raw: true,
+						}),` : ""}
 					],
 					resolve: {
 						extensions: [".ts", ".tsx", ".mjs", ".js", ".cjs", ".json"],
@@ -90,13 +96,28 @@ export function createTestProject(options: {
 				export const t = context.t;
 			`,
 			"index.ts": `
+				import assert from "node:assert/strict";
 				import { u27n, t } from "./u27n";
 
+				await u27n.setLocale("en");
+				console.log((await import("./module-a")).run());
+				console.log((await import("./module-b")).run());
+
+				assert.equal(u27n.getLocale("de"), undefined);
 				await u27n.setLocale("de");
+
+				const deLocale = u27n.getLocale("de");
+				assert.equal(deLocale.data["webpack-test"].c, undefined);
 
 				console.log(t("Hello World!", "0"));
 				console.log((await import("./module-a")).run());
 				console.log((await import("./module-b")).run());
+
+				assert.equal(deLocale.data["webpack-test"].c, undefined);
+				console.log(await (await import("./module-c")).run());
+				assert.equal(deLocale.data["webpack-test"].c, "Z");
+
+				await u27n.setLocale("en");
 				console.log(await (await import("./module-c")).run());
 			`,
 			"module-a.ts": `
@@ -123,4 +144,16 @@ export function createTestProject(options: {
 			`,
 		},
 	});
+
+	return {
+		expectedStdout: [
+			"A",
+			"AB",
+			"Hallo Welt!",
+			"X",
+			"XY",
+			"XYZ",
+			"ABC",
+		].map(l => l + "\n").join(""),
+	};
 }

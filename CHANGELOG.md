@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1
++ Fix assets processing conflict with webpack's BannerPlugin.
+
 ## 0.3.0
 + Complete re-implementation:
   + Supports loading locale chunks via fetch, node fs or a custom implementation.

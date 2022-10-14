@@ -20,15 +20,13 @@ export class U27nPlugin {
 	static ENV_FETCH = join(envRoot, "fetch.js");
 
 	/**
-	 * Uses `node:fs/promises` to read locale chunks from the file system.
-	 *
-	 * Locale chunk names are resolved relative to the dirname of the bundle.
+	 * Uses `node:fs/promises` to read locale chunks from disk.
 	 */
 	static ENV_NODE = join(envRoot, "node.js");
 
 	#options: U27nPlugin.Options;
 
-	constructor(options: U27nPlugin.Options) {
+	constructor(options: U27nPlugin.Options = {}) {
 		this.#options = options;
 	}
 
@@ -223,7 +221,7 @@ export class U27nPlugin {
 		});
 
 		compiler.hooks.thisCompilation.tap(U27nPlugin.name, compilation => {
-			compilation.hooks.processAssets.tapPromise({ name: U27nPlugin.name, stage: webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE }, async () => {
+			compilation.hooks.processAssets.tapPromise({ name: U27nPlugin.name, stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONS, before: "BannerPlugin" }, async () => {
 				logger.log("Compiling locales");
 
 				modules: for (const [module, chunks] of currentModules) {
@@ -336,8 +334,6 @@ export class U27nPlugin {
 }
 
 export declare namespace U27nPlugin {
-	export type Target = "web" | "node";
-
 	export interface Options {
 		/**
 		 * Filename of one or more u27n configs.
