@@ -13,6 +13,11 @@
 			"module": "./dist/es/runtime/index.js",
 			"import": "./dist/es/runtime/index.js",
 			"default": "./dist/cjs/runtime/index.js"
+		},
+		"./runtime/env": {
+			"module": "./dist/es/runtime/env/index.js",
+			"import": "./dist/es/runtime/env/index.js",
+			"default": "./dist/es/runtime/env/index.js"
 		}
 	},
 	"scripts": {

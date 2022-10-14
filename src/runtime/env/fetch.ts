@@ -1,5 +1,5 @@
-import { LocaleData } from "@u27n/core/runtime";
-import { Env } from "@u27n/webpack/runtime/env";
+import type { LocaleData } from "@u27n/core/runtime";
+import type { Env } from "@u27n/webpack/runtime/env";
 
 declare const __webpack_public_path__: string;
 
