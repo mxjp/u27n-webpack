@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.2
++ Add noop environment module in case code is loaded in a non-webpack runtime.
+
 ## 0.3.1
 + Fix assets processing conflict with webpack's BannerPlugin.
 
