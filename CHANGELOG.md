@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.3
++ Fix edge case where data is not loaded when dynamic imports are invoked while changing locales.
+
 ## 0.3.2
 + Add noop environment module in case code is loaded in a non-webpack runtime.
 
