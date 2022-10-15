@@ -1,6 +1,6 @@
 {
 	"name": "@u27n/webpack",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/es/index.js",
 	"exports": {
@@ -38,7 +38,7 @@
 		"@types/js-string-escape": "^1.0.1",
 		"@types/node": "^18.8.1",
 		"@u27n/core": "^2.1.0",
-		"@u27n/typescript": "^1.1.1",
+		"@u27n/typescript": "^2.0.0",
 		"ava": "^4.3.3",
 		"concurrently": "^7.4.0",
 		"html-webpack-plugin": "^5.5.0",
