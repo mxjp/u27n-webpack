@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import { Config, Diagnostic, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, NodeFileSystem, Project, Source, TranslationData, TranslationDataView } from "@u27n/core";
+import { Config, Diagnostic, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, Manifest, ManifestResolver, NodeFileSystem, Project, Source, TranslationData, TranslationDataView } from "@u27n/core";
 import { LocaleData } from "@u27n/core/runtime";
 import { ImportExpression } from "estree";
 import { walk } from "estree-walker";
@@ -165,8 +166,12 @@ export class U27nPlugin {
 			watching = false;
 		});
 
+		const manifestResolver = new ManifestResolver();
+		/** Map: locale data filename => promise of the loading operation */
+		const externalLocales = new Map<string, Promise<LocaleData>>();
+
 		const moduleRequests = new ModuleRequestMap();
-		const manifestCompiler = new RuntimeManifestCompiler();
+		const runtimeManifestCompiler = new RuntimeManifestCompiler();
 
 		const currentModules = new Map<NormalModule, Chunk[]>();
 		const currentChunkGroups = new Set<ChunkGroup>();
@@ -245,7 +250,6 @@ export class U27nPlugin {
 												TranslationDataView.valueTypeEquals(fragmentData.value, translation.value)
 												&& (includeOutdated || !TranslationDataView.isOutdated(fragmentModified, translation))
 											) {
-												// TODO: Optimize this with caches:
 												for (const chunkId of chunkIds) {
 													let chunkOutput = output.get(chunkId);
 													if (chunkOutput === undefined) {
@@ -273,11 +277,57 @@ export class U27nPlugin {
 						}
 					}
 
-					// TODO: Resolve manifest by dirname.
-					// TODO: If resolved, add data from manifest to output.
+					const result = await manifestResolver.resolve(filename);
+					if (result) {
+						const fileId = Manifest.filenameToFileId(result.filename, filename);
+						const fileInfo = result.manifest.files[fileId];
+						if (fileInfo) {
+							for (const locale in result.manifest.locales) {
+								const localeFilename = Manifest.fileIdToFilename(result.filename, result.manifest.locales[locale]);
+								let promise = externalLocales.get(localeFilename);
+								if (promise === undefined) {
+									promise = readFile(localeFilename, "utf-8").then(json => {
+										return JSON.parse(json) as LocaleData;
+									});
+									externalLocales.set(localeFilename, promise);
+								}
+								const localeData = await promise;
+								for (const chunkId of chunkIds) {
+									let chunkOutput = output.get(chunkId);
+									if (chunkOutput === undefined) {
+										chunkOutput = new Map();
+										output.set(chunkId, chunkOutput);
+									}
+									let localeOutput = chunkOutput.get(locale);
+									if (localeOutput === undefined) {
+										localeOutput = Object.create(null) as {};
+										chunkOutput.set(locale, localeOutput);
+									}
+									for (const namespace in fileInfo.namespaces) {
+										let namespaceOutput = localeOutput[namespace];
+										if (namespaceOutput === undefined) {
+											namespaceOutput = Object.create(null) as {};
+											localeOutput[namespace] = namespaceOutput;
+										}
+										const namespaceInput = localeData[namespace];
+										if (namespaceInput !== undefined) {
+											const fragmentIds = fileInfo.namespaces[namespace].fragmentIds;
+											for (let i = 0; i < fragmentIds.length; i++) {
+												const fragmentId = fragmentIds[i];
+												const value = namespaceInput[fragmentId];
+												if (value !== undefined) {
+													namespaceOutput[fragmentId] = value;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 
-				manifestCompiler.clearLocaleChunks();
+				runtimeManifestCompiler.clearLocaleChunks();
 				for (const [chunkId, chunkOutput] of output) {
 					for (const [locale, localeOutput] of chunkOutput) {
 						const content = JSON.stringify(localeOutput);
@@ -287,39 +337,38 @@ export class U27nPlugin {
 							.replace("[hash]", () => createHash("sha256").update(content).digest().subarray(0, 16).toString("base64url"));
 
 						compilation.emitAsset(name, new webpack.sources.OriginalSource(content, name));
-						manifestCompiler.addLocaleChunkAsset(chunkId, locale, name);
+						runtimeManifestCompiler.addLocaleChunkAsset(chunkId, locale, name);
 					}
 				}
 
-				manifestCompiler.clearEntryChunkIds();
+				runtimeManifestCompiler.clearEntryChunkIds();
 				for (const chunkGroup of currentChunkGroups) {
 					let isEntry = false;
 					for (const origin of chunkGroup.origins) {
 						if (origin.module instanceof NormalModule) {
 							const requestId = moduleRequests.getRequestId(origin.module, origin.request);
 							if (requestId !== undefined) {
-								manifestCompiler.addRequestChunkIds(requestId, getChunkIds(chunkGroup.chunks));
+								runtimeManifestCompiler.addRequestChunkIds(requestId, getChunkIds(chunkGroup.chunks));
 							}
 						} else if (!origin.module && !isEntry) {
 							isEntry = true;
 							for (const chunk of chunkGroup.chunks) {
 								if (chunk.id !== null) {
-									manifestCompiler.addEntryChunkId(chunk.id);
+									runtimeManifestCompiler.addEntryChunkId(chunk.id);
 								}
 							}
 						}
 					}
 				}
 
-				// TODO: Also inject manifest into HMR chunks.
-				const manifestJs = manifestCompiler.compile();
+				const runtimeManifestJs = runtimeManifestCompiler.compile();
 				for (const chunk of compilation.chunks) {
 					if (chunk.canBeInitial()) {
 						for (const file of chunk.files) {
 							if (/\.[cm]?js$/.test(file)) {
 								compilation.updateAsset(file, source => {
 									return new webpack.sources.ConcatSource(
-										new webpack.sources.OriginalSource(manifestJs, file),
+										new webpack.sources.OriginalSource(runtimeManifestJs, file),
 										source,
 									);
 								});
