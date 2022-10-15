@@ -25,6 +25,9 @@
 		"build": "npm run clean && concurrently npm:build:*",
 		"build:es": "tsc -p tsconfig-es.json",
 		"build:cjs": "tsc -p tsconfig-cjs.json",
+		"start": "npm run clean && concurrently npm:start:*",
+		"start:es": "npm run build:es -- -w",
+		"start:cjs": "npm run build:cjs -- -w",
 		"test:dev": "npm run clean && concurrently \"tsc -p tsconfig-test.json -w\" \"ava -v -w\"",
 		"test": "npm run clean && tsc -p tsconfig-test.json && ava -v",
 		"lint": "eslint --no-error-on-unmatched-pattern --config .eslintrc.json ./src/**/*",
@@ -34,7 +37,7 @@
 		"@mpt/eslint-rules": "^3.0.0",
 		"@types/js-string-escape": "^1.0.1",
 		"@types/node": "^18.8.1",
-		"@u27n/core": "^1.17.0",
+		"@u27n/core": "^2.1.0",
 		"@u27n/typescript": "^1.1.1",
 		"ava": "^4.3.3",
 		"concurrently": "^7.4.0",
@@ -48,6 +51,7 @@
 		"webpack-dev-server": "^4.11.1"
 	},
 	"peerDependencies": {
+		"@u27n/core": "^2.1.0",
 		"webpack": "^5.74.0"
 	},
 	"dependencies": {

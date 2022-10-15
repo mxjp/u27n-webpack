@@ -7,6 +7,8 @@ import type { ChunkId } from "../types/webpack";
 const controllers = new Set<U27N>();
 /** Set of entry chunk ids and chunk ids that have been imported via dynamic import hooks. */
 const activeChunkIds = new Set<ChunkId>(_u27nw_m[0]);
+/** Set of callbacks to invoke when new active chunks have been added. */
+const addActiveChunkIdHooks = new Set<(chunkId: ChunkId) => void>();
 /** Map of module objects to sets of request ids that the module has been requested by. */
 const moduleRequestIds = new WeakMap<object, Set<number>>();
 /** Map of locale chunk names to fetched locale data. */
@@ -26,6 +28,7 @@ function fetchLocaleChunk(name: string): Promise<LocaleData> {
 			localeChunkCache.delete(name);
 			throw error;
 		});
+		localeChunkCache.set(name, promise);
 	}
 	return promise;
 }
@@ -59,7 +62,19 @@ function addLocaleChunks(locale: Locale, chunkIds: Iterable<ChunkId>): Promise<u
  */
 const client: U27N.Client = {
 	async fetchResources(controller: U27N, locale: Locale) {
-		await addLocaleChunks(locale, activeChunkIds);
+		let additionalChunkIdQueue: ChunkId[] = [];
+		const onAddActiveChunkId = (chunkId: ChunkId) => additionalChunkIdQueue.push(chunkId);
+		addActiveChunkIdHooks.add(onAddActiveChunkId);
+		try {
+			await addLocaleChunks(locale, activeChunkIds);
+			while (additionalChunkIdQueue.length > 0) {
+				const chunkIds = additionalChunkIdQueue;
+				additionalChunkIdQueue = [];
+				await addLocaleChunks(locale, chunkIds);
+			}
+		} finally {
+			addActiveChunkIdHooks.delete(onAddActiveChunkId);
+		}
 	},
 };
 
@@ -68,7 +83,11 @@ globalThis._u27nw_i = <T extends object>(requestId: number, importPromise: Promi
 	if (chunkIds !== undefined) {
 		const tasks: Promise<unknown>[] = [importPromise];
 		for (const chunkId of chunkIds) {
+			const activeChunkCount = activeChunkIds.size;
 			activeChunkIds.add(chunkId);
+			if (activeChunkIds.size > activeChunkCount) {
+				addActiveChunkIdHooks.forEach(hook => hook(chunkId));
+			}
 		}
 		for (const controller of controllers) {
 			const locale = controller.locale;
