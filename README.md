@@ -1,12 +1,5 @@
 # U27N Webpack Plugin
-> **This is a prototype!**<br>
-> Things might change or break at any time.
-
-<br>
-
-
-
-This is a webpack plugin that integrates the complete u27n build chain into webpack as a replacement for the u27n cli.
+This is a webpack plugin that integrates the u27n toolchain into webpack as an alternative for the u27n cli.
 
 ## Content
 + [Setup](#setup)
@@ -18,6 +11,7 @@ This is a webpack plugin that integrates the complete u27n build chain into webp
 + [Caching](#caching)
 + [Troubleshooting](#troubleshooting)
 + [Internals](#internals)
++ [Compatibility](#compatibility)
 
 <br>
 
@@ -212,3 +206,15 @@ if (u27n.locale) {
 
 This plugin uses global variables prefixed with `"_u27nw_"`.<br>
 For more information in globals, see [src/types/runtime.d.ts](./src/types/runtime.d.ts).
+
+<br />
+
+
+
+# Compatibility
+The table below shows what [core](https://www.npmjs.com/package/@u27n/core) versions are supported by this package.
+
+| @u27n/webpack | @u27n/core |
+|-|-|-|
+| 1.x | 3.x |
+| 0.x | 2.x |

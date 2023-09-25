@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import { Config, Diagnostic, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, Manifest, ManifestResolver, NodeFileSystem, Project, Source, TranslationData, TranslationDataView } from "@u27n/core";
+import { Config, DataAdapter, Diagnostic, filenameToSourceId, getDiagnosticLocations, getDiagnosticMessage, getDiagnosticSeverity, Manifest, ManifestResolver, Project, TextSource } from "@u27n/core";
 import { LocaleData } from "@u27n/core/runtime";
 import { ImportExpression } from "estree";
 import { walk } from "estree-walker";
@@ -54,12 +54,11 @@ export class U27nPlugin {
 
 		let projectsPromise: Promise<void> | null = null;
 		const ensureProjects = () => projectsPromise ??= (async () => {
-			const fileSystem = new NodeFileSystem();
 			for (const path of typeof options.config === "string" ? [options.config] : (options.config ?? ["./u27n.json"])) {
 				const configFilename = resolve(compiler.context, path);
 				logger.log("Loading project:", logFile(configFilename));
 				const config = await Config.read(configFilename);
-				projects.push(await Project.create({ config, fileSystem }));
+				projects.push(await Project.create({ config }));
 			}
 		})();
 
@@ -79,11 +78,13 @@ export class U27nPlugin {
 
 							case "fragment":
 								text += `\n  in ${relative(process.cwd(), location.filename)}`;
-								if (location.source) {
+								if (location.source instanceof TextSource) {
 									const position = location.source.lineMap.getPosition(location.start);
 									if (position !== null) {
 										text += `:${position.line + 1}:${position.character + 1}`;
 									}
+								} else {
+									text += `[${location.start}, ${location.end}]`;
 								}
 								break;
 						}
@@ -135,10 +136,10 @@ export class U27nPlugin {
 							modify: options.modify ?? true,
 							output: false,
 							delay: options.delay ?? 100,
-							onFinish: async ({ diagnostics, translationDataChanged }) => {
-								emitDiagnostics(project, diagnostics);
-								if (translationDataChanged && !isInitial) {
-									logger.log("Translation data changed:", logFile(project.config.translationData.filename));
+							onFinish: async result => {
+								emitDiagnostics(project, result.diagnostics);
+								if (result.dataReloaded && !isInitial) {
+									logger.log("Translation data changed:", logFile(project.config.data));
 									compiler.watching?.invalidate();
 								}
 								finish();
@@ -234,41 +235,39 @@ export class U27nPlugin {
 					const filename = module.resource;
 					for (const project of projects) {
 						const includeOutdated = project.config.output.includeOutdated;
-						const data = project.dataProcessor.translationData;
 
-						const sourceId = Source.filenameToSourceId(project.config.context, filename);
+						const sourceId = filenameToSourceId(project.config.context, filename);
 						const source = project.dataProcessor.getSource(sourceId);
 						if (source) {
 							for (const fragment of source.fragments) {
-								if (fragment.fragmentId !== undefined) {
-									const fragmentData = data.fragments[fragment.fragmentId];
-									if (fragmentData) {
-										const fragmentModified = TranslationDataView.parseTimestamp(fragmentData.modified);
-										for (const locale in fragmentData.translations) {
-											const translation = fragmentData.translations[locale];
-											if (
-												TranslationDataView.valueTypeEquals(fragmentData.value, translation.value)
-												&& (includeOutdated || !TranslationDataView.isOutdated(fragmentModified, translation))
-											) {
-												for (const chunkId of chunkIds) {
-													let chunkOutput = output.get(chunkId);
-													if (chunkOutput === undefined) {
-														chunkOutput = new Map();
-														output.set(chunkId, chunkOutput);
-													}
-													let localeOutput = chunkOutput.get(locale);
-													if (localeOutput === undefined) {
-														localeOutput = Object.create(null) as {};
-														chunkOutput.set(locale, localeOutput);
-													}
-													let namespaceOutput = localeOutput[project.config.namespace];
-													if (namespaceOutput === undefined) {
-														namespaceOutput = Object.create(null) as {};
-														localeOutput[project.config.namespace] = namespaceOutput;
-													}
-													namespaceOutput[fragment.fragmentId] = TranslationData.toRawValue(translation.value);
-												}
+								const fragmentData = project.dataProcessor.dataAdapter.getSyncFragment(sourceId, fragment);
+								if (fragmentData === undefined) {
+									continue;
+								}
+
+								for (const locale in fragmentData.translations) {
+									const translation = fragmentData.translations[locale];
+									if (
+										DataAdapter.valueTypeEquals(fragmentData.value, translation.value)
+										&& (includeOutdated || fragmentData.modified <= translation.modified)
+									) {
+										for (const chunkId of chunkIds) {
+											let chunkOutput = output.get(chunkId);
+											if (chunkOutput === undefined) {
+												chunkOutput = new Map();
+												output.set(chunkId, chunkOutput);
 											}
+											let localeOutput = chunkOutput.get(locale);
+											if (localeOutput === undefined) {
+												localeOutput = Object.create(null) as {};
+												chunkOutput.set(locale, localeOutput);
+											}
+											let namespaceOutput = localeOutput[project.config.namespace];
+											if (namespaceOutput === undefined) {
+												namespaceOutput = Object.create(null) as {};
+												localeOutput[project.config.namespace] = namespaceOutput;
+											}
+											namespaceOutput[fragment.fragmentId!] = DataAdapter.toRawValue(translation.value);
 										}
 									}
 								}

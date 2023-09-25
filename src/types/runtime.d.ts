@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 type ChunkId = import("./webpack.js").ChunkId;
 
 declare type U27nRuntimeManifest = [

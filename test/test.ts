@@ -2,7 +2,8 @@ import { on } from "node:events";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { TranslationData } from "@u27n/core";
+import { DataAdapter } from "@u27n/core";
+import { DataJson } from "@u27n/core/default-data-adapter";
 import test, { ExecutionContext } from "ava";
 
 import { createTestProject } from "./_test-project.js";
@@ -11,7 +12,7 @@ import { nodeBin, u27nCli, webpackCli } from "./_utility/paths.js";
 import { createTempDir } from "./_utility/temp-dir.js";
 import { touchSource } from "./_utility/touch-source.js";
 
-async function createTranslationData(t: ExecutionContext, cwd: string, fragments: Record<string, TranslationData.Value>) {
+async function createTranslationData(t: ExecutionContext, cwd: string, fragments: Record<string, DataAdapter.Value>) {
 	await exec({
 		t,
 		cwd,
@@ -21,14 +22,15 @@ async function createTranslationData(t: ExecutionContext, cwd: string, fragments
 	});
 
 	const dataFilename = join(cwd, "u27n-data.json");
-	const data = TranslationData.parseJson(await readFile(dataFilename, "utf-8"));
+
+	const data = JSON.parse(await readFile(dataFilename, "utf-8")) as DataJson;
 	for (const id in fragments) {
 		data.fragments[id].translations["de"] = {
 			value: fragments[id],
 			modified: new Date().toISOString(),
 		};
 	}
-	await writeFile(dataFilename, TranslationData.formatJson(data, true));
+	await writeFile(dataFilename, JSON.stringify(data, null, "\t") + "\n");
 }
 
 test.serial("watch mode", async t => {

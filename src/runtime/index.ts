@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { Locale, LocaleData, U27N } from "@u27n/core/runtime";
 import { env } from "@u27n/webpack/runtime/env";
 

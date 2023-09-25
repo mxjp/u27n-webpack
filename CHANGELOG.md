@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.0
++ **Breaking:** Use core v3 package.
+
 ## 0.3.3
 + Fix edge case where data is not loaded when dynamic imports are invoked while changing locales.
 + Automatically embed external locales using u27n manifests.
