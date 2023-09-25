@@ -215,6 +215,6 @@ For more information in globals, see [src/types/runtime.d.ts](./src/types/runtim
 The table below shows what [core](https://www.npmjs.com/package/@u27n/core) versions are supported by this package.
 
 | @u27n/webpack | @u27n/core |
-|-|-|-|
+|-|-|
 | 1.x | 3.x |
 | 0.x | 2.x |
